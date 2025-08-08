@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -54,29 +55,30 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     const fetchData = async () => {
       setIsDataLoading(true);
       
-      const { data: summariesData, error: summariesError } = await supabase
+      const summariesPromise = supabase
         .from('summaries')
         .select('*')
         .order('timestamp', { ascending: false });
 
-      if (summariesError) {
-        console.error("Error fetching summaries:", summariesError);
-        toast({ variant: 'destructive', title: 'Error fetching summaries', description: summariesError.message });
-      } else {
-        setSavedSummaries(summariesData || []);
-      }
-      
-      const { data: remindersData, error: remindersError } = await supabase
+      const remindersPromise = supabase
         .from('reminders')
         .select('*')
         .order('remindAt', { ascending: true });
 
+      const [summariesResult, remindersResult] = await Promise.all([summariesPromise, remindersPromise]);
 
-      if (remindersError) {
-        console.error("Error fetching reminders:", remindersError);
-        toast({ variant: 'destructive', title: 'Error fetching reminders', description: remindersError.message });
+      if (summariesResult.error) {
+        console.error("Error fetching summaries:", summariesResult.error);
+        toast({ variant: 'destructive', title: 'Error fetching summaries', description: summariesResult.error.message });
       } else {
-        setReminders(remindersData || []);
+        setSavedSummaries(summariesResult.data || []);
+      }
+      
+      if (remindersResult.error) {
+        console.error("Error fetching reminders:", remindersResult.error);
+        toast({ variant: 'destructive', title: 'Error fetching reminders', description: remindersResult.error.message });
+      } else {
+        setReminders(remindersResult.data || []);
       }
 
       setIsDataLoading(false);
