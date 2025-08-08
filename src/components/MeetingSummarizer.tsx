@@ -13,8 +13,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Save, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload, Link as LinkIcon } from "lucide-react";
+import { FileText, Save, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload, Link as LinkIcon, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 const WEBHOOK_URL = "https://adapted-mentally-chimp.ngrok-free.app/webhook-test/meetingsummerize";
 
@@ -28,6 +30,7 @@ export default function MeetingSummarizer() {
   const [reminderText, setReminderText] = useState("");
   const [reminderDate, setReminderDate] = useState<Date | undefined>();
   const [reminderTime, setReminderTime] = useState("");
+  const [manualReminderSummaryId, setManualReminderSummaryId] = useState<string | undefined>();
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("summarizer");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -170,12 +173,13 @@ export default function MeetingSummarizer() {
       id: new Date().toISOString(),
       text: reminderText,
       remindAt: finalReminderDate.getTime(),
-      summaryId: "manual", // Indicates a manually added reminder
+      summaryId: manualReminderSummaryId || "manual",
     };
     setReminders([newReminder, ...reminders].sort((a,b) => a.remindAt - b.remindAt));
     setReminderText("");
     setReminderDate(undefined);
     setReminderTime("");
+    setManualReminderSummaryId(undefined);
   };
 
   const handleDeleteSummary = (id: string) => {
@@ -332,25 +336,38 @@ export default function MeetingSummarizer() {
                   value={reminderText}
                   onChange={(e) => setReminderText(e.target.value)}
                 />
-                <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant={"outline"} className="w-full justify-start text-left font-normal">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {reminderDate ? format(reminderDate, "PPP") : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={reminderDate} onSelect={setReminderDate} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                  <Input
-                    type="time"
-                    value={reminderTime}
-                    onChange={(e) => setReminderTime(e.target.value)}
-                    className="w-[120px]"
-                  />
-                </div>
+                 <div className="flex flex-col sm:flex-row gap-2">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button variant={"outline"} className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {reminderDate ? format(reminderDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={reminderDate} onSelect={setReminderDate} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+                    <div className="relative w-full sm:w-auto">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="time"
+                            value={reminderTime}
+                            onChange={(e) => setReminderTime(e.target.value)}
+                            className="pl-10 w-full"
+                        />
+                    </div>
+                 </div>
+                <Select onValueChange={setManualReminderSummaryId} value={manualReminderSummaryId}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Link to a saved summary (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {savedSummaries.map(s => (
+                            <SelectItem key={s.id} value={s.id}>Summary from {format(new Date(s.timestamp), "PPP")}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
               </CardContent>
               <CardFooter>
                 <Button onClick={handleAddReminder}><Bell className="mr-2 h-4 w-4" />Add Reminder</Button>
