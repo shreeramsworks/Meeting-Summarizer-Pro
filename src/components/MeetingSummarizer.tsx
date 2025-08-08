@@ -376,15 +376,12 @@ export default function MeetingSummarizer() {
                         <Calendar mode="single" selected={reminderDate} onSelect={setReminderDate} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <div className="relative w-full sm:w-auto">
-                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="time"
-                            value={reminderTime}
-                            onChange={(e) => setReminderTime(e.target.value)}
-                            className="pl-10 w-full"
-                        />
-                    </div>
+                    <Input
+                        type="time"
+                        value={reminderTime}
+                        onChange={(e) => setReminderTime(e.target.value)}
+                        className="w-full"
+                    />
                  </div>
                 <Select onValueChange={setManualReminderSummaryId} value={manualReminderSummaryId}>
                     <SelectTrigger className="hover:bg-accent hover:text-accent-foreground">
