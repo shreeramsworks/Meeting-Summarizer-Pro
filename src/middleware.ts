@@ -1,28 +1,30 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/middleware'
+import { type NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/middleware';
 
 export async function middleware(request: NextRequest) {
-  const { supabase, response } = createClient(request)
+  const { supabase, response } = createClient(request);
 
+  // Refresh session if expired - required for Server Components
+  // https://supabase.com/docs/guides/auth/server-side/nextjs
   const {
     data: { session },
-  } = await supabase.auth.getSession()
+  } = await supabase.auth.getSession();
 
-  const { pathname } = request.nextUrl
+  const { pathname } = request.nextUrl;
 
-  // If user is logged in and tries to access the homepage, redirect to dashboard
+  // If user is logged in and on the homepage, redirect to dashboard
   if (session && pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // If user is not logged in and tries to access the dashboard, redirect to homepage
-  if (!session && pathname === '/dashboard') {
-    return NextResponse.redirect(new URL('/', request.url))
+  // If user is not logged in and tries to access dashboard, redirect to homepage
+  if (!session && pathname.startsWith('/dashboard')) {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  return response
+  return response;
 }
 
 export const config = {
-  matcher: ['/', '/dashboard'],
-}
+  matcher: ['/', '/dashboard/:path*'],
+};
