@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { SummaryHistoryItem, Reminder } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeMeetingTranscript } from "@/ai/flows/summarize-meeting";
@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, History, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send } from "lucide-react";
+import { FileText, History, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload } from "lucide-react";
 import { format } from "date-fns";
 
 const WEBHOOK_URL = "https://adapted-mentally-chimp.ngrok-free.app/webhook-test/meetingsummerize";
@@ -28,6 +28,7 @@ export default function MeetingSummarizer() {
   const [reminderText, setReminderText] = useState("");
   const [reminderDate, setReminderDate] = useState<Date | undefined>();
   const [isMounted, setIsMounted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -56,6 +57,22 @@ export default function MeetingSummarizer() {
         localStorage.setItem("meeting_reminders", JSON.stringify(reminders));
     }
   }, [reminders, isMounted]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setTranscript(text);
+      };
+      reader.readAsText(file);
+    }
+  };
+  
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
 
   const handleSummarize = async () => {
     if (!transcript.trim()) {
@@ -150,8 +167,8 @@ export default function MeetingSummarizer() {
           <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Upload Transcript</CardTitle>
-                <CardDescription>Paste your meeting transcript below to get a summary.</CardDescription>
+                <CardTitle>Your Transcript</CardTitle>
+                <CardDescription>Paste your meeting transcript below or upload a .txt file.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Textarea
@@ -162,10 +179,21 @@ export default function MeetingSummarizer() {
                   disabled={isLoading}
                 />
               </CardContent>
-              <CardFooter>
+              <CardFooter className="flex-col sm:flex-row items-start sm:items-center gap-2">
                 <Button onClick={handleSummarize} disabled={isLoading}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   {isLoading ? 'Summarizing...' : 'Summarize'}
+                </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept=".txt"
+                />
+                <Button variant="outline" onClick={handleUploadClick} disabled={isLoading}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload .txt file
                 </Button>
               </CardFooter>
             </Card>
@@ -183,7 +211,7 @@ export default function MeetingSummarizer() {
                     <Skeleton className="h-4 w-3/4" />
                   </div>
                 ) : summary ? (
-                  <p className="text-sm whitespace-pre-wrap">{summary}</p>
+                  <p className="text-sm whitespace-pre-wrap font-sans">{summary}</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">No summary generated yet.</p>
                 )}
@@ -209,7 +237,7 @@ export default function MeetingSummarizer() {
                       </AccordionTrigger>
                       <AccordionContent className="p-4 bg-muted/50 rounded-md">
                         <h4 className="font-semibold mb-2">Summary:</h4>
-                        <p className="text-sm whitespace-pre-wrap mb-4">{item.summary}</p>
+                        <p className="text-sm whitespace-pre-wrap mb-4 font-sans">{item.summary}</p>
                         <Button variant="destructive" size="sm" onClick={() => handleDeleteHistory(item.id)}>
                           <Trash2 className="mr-2 h-4 w-4" />
                           Delete

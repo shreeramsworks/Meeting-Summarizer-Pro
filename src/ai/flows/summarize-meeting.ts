@@ -39,28 +39,28 @@ interface WebhookResponse {
 }
 
 function formatWebhookResponse(response: WebhookResponse): string {
-    let formattedText = `**Summary:**\n${response.summary}\n\n`;
+    let formattedText = `Summary:\n${response.summary}\n\n`;
 
     if (response.action_items && response.action_items.length > 0) {
-        formattedText += "**Action Items:**\n";
+        formattedText += "Action Items:\n";
         response.action_items.forEach(item => {
-            formattedText += `- ${item.task} (Assignee: ${item.assignee}, Due: ${item.due_date})\n`;
+            formattedText += `  - ${item.task} (Assignee: ${item.assignee}, Due: ${item.due_date})\n`;
         });
         formattedText += "\n";
     }
 
     if (response.decisions_made && response.decisions_made.length > 0) {
-        formattedText += "**Decisions Made:**\n";
+        formattedText += "Decisions Made:\n";
         response.decisions_made.forEach(decision => {
-            formattedText += `- ${decision}\n`;
+            formattedText += `  - ${decision}\n`;
         });
         formattedText += "\n";
     }
 
     if (response.follow_up_reminders && response.follow_up_reminders.length > 0) {
-        formattedText += "**Follow-up Reminders:**\n";
+        formattedText += "Follow-up Reminders:\n";
         response.follow_up_reminders.forEach(reminder => {
-            formattedText += `- ${reminder.reminder} (Due: ${reminder.due_date}, Context: ${reminder.context})\n`;
+            formattedText += `  - ${reminder.reminder} (Due: ${reminder.due_date}, Context: ${reminder.context})\n`;
         });
         formattedText += "\n";
     }
