@@ -74,7 +74,7 @@ export default function Home() {
                   Your data is your own. All summaries and reminders are stored securely in your private account.
                 </CardDescription>
               </CardContent>
-            </card>
+            </Card>
           </div>
         </section>
       </main>
