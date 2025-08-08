@@ -3,13 +3,13 @@ export interface SummaryItem {
   user_id: string;
   transcript: string;
   summary: string;
-  timestamp: number;
+  timestamp: string; // Changed from number to string for ISO format
 }
 
 export interface Reminder {
   id: string;
   user_id: string;
   text: string;
-  remindAt: number;
+  remindAt: string; // Changed from number to string for ISO format
   summaryId: string | null;
 }

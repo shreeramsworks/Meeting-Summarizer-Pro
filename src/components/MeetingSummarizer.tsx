@@ -65,8 +65,9 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
       
       const { data: remindersData, error: remindersError } = await supabase
         .from('reminders')
-        .select('*')
+        .select('*, remindAt:remindAt')
         .order('remindAt', { ascending: true });
+
 
       if (remindersError) {
         console.error("Error fetching reminders:", JSON.stringify(remindersError, null, 2));
@@ -132,6 +133,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   const handleSaveSummary = async () => {
     if (!summary) return;
 
+    // We don't include timestamp here because we want the DB to set it
     const newSummaryItem: Omit<SummaryItem, 'id' | 'timestamp' | 'user_id'> = {
       transcript,
       summary,
@@ -144,7 +146,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
         .single();
     
     if (error || !data) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to save summary.' });
+        toast({ variant: 'destructive', title: 'Error', description: `Failed to save summary: ${error?.message}` });
         return;
     }
 
@@ -165,7 +167,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
             if (!isNaN(reminderDate.getTime())) {
                 newReminders.push({
                     text: `Action: ${task} (Assigned to: ${assignee})`,
-                    remindAt: reminderDate.getTime(),
+                    remindAt: reminderDate.toISOString(),
                     summaryId: savedSummaryItem.id,
                 });
             }
@@ -184,7 +186,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
             if (!isNaN(reminderDate.getTime())) {
                 newReminders.push({
                     text: `Follow-up: ${reminderText} (Context: ${context})`,
-                    remindAt: reminderDate.getTime(),
+                    remindAt: reminderDate.toISOString(),
                     summaryId: savedSummaryItem.id,
                 });
             }
@@ -198,9 +200,9 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
             .select();
 
         if (remindersError) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to save reminders.' });
+            toast({ variant: 'destructive', title: 'Error', description: `Failed to save reminders: ${remindersError.message}` });
         } else if (remindersData) {
-            setReminders(prev => [...prev, ...remindersData].sort((a,b) => a.remindAt - b.remindAt));
+            setReminders(prev => [...prev, ...remindersData].sort((a,b) => new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime()));
             toast({
                 title: "Success",
                 description: "Summary saved and reminders created for action items and follow-ups.",
@@ -238,18 +240,18 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
 
     const newReminder: Omit<Reminder, 'id' | 'user_id'> = {
       text: reminderText,
-      remindAt: finalReminderDate.getTime(),
+      remindAt: finalReminderDate.toISOString(),
       summaryId: manualReminderSummaryId || null,
     };
     
     const { data, error } = await supabase.from('reminders').insert(newReminder).select().single();
 
     if (error || !data) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to add reminder.' });
+        toast({ variant: 'destructive', title: 'Error', description: `Failed to add reminder: ${error?.message}` });
         return;
     }
 
-    setReminders([data as Reminder, ...reminders].sort((a,b) => a.remindAt - b.remindAt));
+    setReminders([data as Reminder, ...reminders].sort((a,b) => new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime()));
     setReminderText("");
     setReminderDate(undefined);
     setReminderTime("");
@@ -261,14 +263,14 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     // Delete associated reminders first
     const { error: reminderError } = await supabase.from('reminders').delete().match({ summaryId: id });
     if(reminderError) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete associated reminders.' });
+        toast({ variant: 'destructive', title: 'Error', description: `Could not delete associated reminders: ${reminderError.message}` });
         return;
     }
     setReminders(reminders.filter(r => r.summaryId !== id));
 
     const { error } = await supabase.from('summaries').delete().match({ id });
     if (error) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete summary.' });
+        toast({ variant: 'destructive', title: 'Error', description: `Could not delete summary: ${error.message}` });
     } else {
         setSavedSummaries(savedSummaries.filter((item) => item.id !== id));
         toast({ title: 'Success', description: 'Summary deleted.' });
@@ -278,7 +280,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   const handleDeleteReminder = async (id: string) => {
     const { error } = await supabase.from('reminders').delete().match({ id });
     if (error) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete reminder.' });
+        toast({ variant: 'destructive', title: 'Error', description: `Could not delete reminder: ${error.message}` });
     } else {
         setReminders(reminders.filter((item) => item.id !== id));
         toast({ title: 'Success', description: 'Reminder deleted.' });
@@ -301,7 +303,6 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push('/');
-    router.refresh();
   };
 
 
@@ -346,10 +347,6 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
                 <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Sign Out</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    <span>Delete Account</span>
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
@@ -551,5 +548,3 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     </div>
   );
 }
-
-    
