@@ -29,55 +29,57 @@ export default function AuthForm({ mode, onClose }: AuthFormProps) {
     e.preventDefault();
     setIsLoading(true);
 
-    if (mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
+    try {
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+            },
           },
-        },
-      });
-       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Signup Failed",
-          description: error.message,
         });
-      } else if (data.user) {
-         if (data.user.identities?.length === 0) {
-            toast({
-                variant: "destructive",
-                title: "Signup Error",
-                description: "This email address is already in use.",
-            });
-         } else {
-            toast({
-              title: "Success!",
-              description: "Please check your email to confirm your account.",
-            });
-            onClose();
-         }
-      }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: error.message,
-        });
+        if (error) {
+          throw error;
+        }
+        if (data.user) {
+           if (data.user.identities?.length === 0) {
+              toast({
+                  variant: "destructive",
+                  title: "Signup Error",
+                  description: "This email address is already in use.",
+              });
+           } else {
+              toast({
+                title: "Success!",
+                description: "Please check your email to confirm your account.",
+              });
+              onClose();
+           }
+        }
       } else {
-        router.push("/dashboard");
-        router.refresh(); // This forces a reload and ensures middleware runs
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          throw error;
+        }
+        
+        // Use a hard redirect to ensure the page and session are fully refreshed.
+        window.location.href = '/dashboard';
       }
+    } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: mode === 'login' ? "Login Failed" : "Signup Failed",
+          description: error.message || "An unexpected error occurred. Please try again.",
+        });
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
