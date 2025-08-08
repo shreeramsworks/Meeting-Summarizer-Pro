@@ -86,3 +86,56 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.time-picker-loader {
+  position: relative;
+  transform: scale(0.7);
+  border-radius: 50%;
+  border: 1px solid hsl(var(--foreground));
+  width: 30px;
+  height: 30px;
+  color: hsl(var(--foreground));
+}
+
+.time-picker-loader::after {
+  position: absolute;
+  width: 0px;
+  height: 10px;
+  display: block;
+  border-left: 1px solid hsl(var(--foreground));
+  content: '';
+  left: 14px;
+  border-radius: 1px;
+  top: 4px;
+  animation-duration: 1s;
+}
+
+.time-picker-loader::before {
+  position: absolute;
+  width: 0px;
+  height: 10px;
+  display: block;
+  border-left: 1px solid hsl(var(--foreground));
+  content: '';
+  left: 14px;
+  border-radius: 1px;
+  top: 4px;
+  animation-duration: 40s;
+}
+
+.time-picker-loader::before,.time-picker-loader::after {
+  transform-origin: bottom;
+  animation-name: dial;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+
+@keyframes dial {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}

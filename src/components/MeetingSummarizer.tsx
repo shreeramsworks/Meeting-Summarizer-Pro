@@ -34,6 +34,7 @@ export default function MeetingSummarizer() {
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("summarizer");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const timeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -376,12 +377,19 @@ export default function MeetingSummarizer() {
                         <Calendar mode="single" selected={reminderDate} onSelect={setReminderDate} initialFocus />
                         </PopoverContent>
                     </Popover>
-                    <Input
-                        type="time"
-                        value={reminderTime}
-                        onChange={(e) => setReminderTime(e.target.value)}
-                        className="w-full"
-                    />
+                    <div className="relative w-full">
+                        <Button variant="outline" className="w-full justify-start text-left font-normal hover:bg-accent hover:text-accent-foreground" onClick={() => timeInputRef.current?.showPicker()}>
+                          <div className="time-picker-loader mr-2"></div>
+                           {reminderTime ? reminderTime : <span>Pick a time</span>}
+                        </Button>
+                        <Input
+                            ref={timeInputRef}
+                            type="time"
+                            value={reminderTime}
+                            onChange={(e) => setReminderTime(e.target.value)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                    </div>
                  </div>
                 <Select onValueChange={setManualReminderSummaryId} value={manualReminderSummaryId}>
                     <SelectTrigger className="hover:bg-accent hover:text-accent-foreground">
