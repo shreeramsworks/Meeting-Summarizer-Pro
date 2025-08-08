@@ -1,6 +1,4 @@
--- Drop existing tables and policies if they exist, for a clean setup.
-DROP POLICY IF EXISTS "Allow users to manage their own reminders" ON reminders;
-DROP POLICY IF EXISTS "Allow users to manage their own summaries" ON summaries;
+-- Drop existing tables if they exist, for a clean setup.
 DROP TABLE IF EXISTS reminders;
 DROP TABLE IF EXISTS summaries;
 
@@ -77,5 +75,3 @@ ON reminders
 FOR DELETE
 TO authenticated
 USING (auth.uid() = user_id);
-
-    
