@@ -367,7 +367,7 @@ export default function MeetingSummarizer() {
                  <div className="flex flex-col sm:flex-row gap-2">
                     <Popover>
                         <PopoverTrigger asChild>
-                        <Button variant={"outline"} className="w-full justify-start text-left font-normal">
+                        <Button variant={"outline"} className="w-full justify-start text-left font-normal hover:bg-accent hover:text-accent-foreground">
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {reminderDate ? format(reminderDate, "PPP") : <span>Pick a date</span>}
                         </Button>
@@ -382,17 +382,17 @@ export default function MeetingSummarizer() {
                             type="time"
                             value={reminderTime}
                             onChange={(e) => setReminderTime(e.target.value)}
-                            className="pl-10 w-full border-white"
+                            className="pl-10 w-full"
                         />
                     </div>
                  </div>
                 <Select onValueChange={setManualReminderSummaryId} value={manualReminderSummaryId}>
-                    <SelectTrigger>
+                    <SelectTrigger className="hover:bg-accent hover:text-accent-foreground">
                         <SelectValue placeholder="Link to a saved summary (optional)" />
                     </SelectTrigger>
                     <SelectContent>
                         {savedSummaries.map(s => (
-                            <SelectItem key={s.id} value={s.id}>Summary from {format(new Date(s.timestamp), "PPP")}</SelectItem>
+                            <SelectItem key={s.id} value={s.id} className="hover:bg-accent hover:text-accent-foreground">Summary from {format(new Date(s.timestamp), "PPP")}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
@@ -410,7 +410,7 @@ export default function MeetingSummarizer() {
                 {reminders.length > 0 ? (
                   <ul className="space-y-3">
                     {reminders.map((reminder) => (
-                      <li key={reminder.id} className="flex items-center justify-between p-3 rounded-md border bg-card">
+                      <li key={reminder.id} className="flex items-center justify-between p-3 rounded-md border bg-card hover:bg-muted/50 transition-colors">
                         <div className="flex-1">
                           <p className="font-medium">{reminder.text}</p>
                           <p className="text-sm text-muted-foreground">
@@ -419,12 +419,12 @@ export default function MeetingSummarizer() {
                         </div>
                         <div className="flex items-center">
                           {reminder.summaryId !== "manual" && (
-                            <Button variant="ghost" size="icon" onClick={() => handleReminderLinkClick(reminder.summaryId)} title="Go to summary">
+                            <Button variant="ghost" size="icon" onClick={() => handleReminderLinkClick(reminder.summaryId)} title="Go to summary" className="hover:bg-accent hover:text-accent-foreground">
                                 <LinkIcon className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(reminder.id)} title="Delete reminder">
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(reminder.id)} title="Delete reminder" className="hover:bg-destructive/10 hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </li>
