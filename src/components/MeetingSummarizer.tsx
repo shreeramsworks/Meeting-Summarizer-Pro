@@ -27,6 +27,7 @@ export default function MeetingSummarizer() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [reminderText, setReminderText] = useState("");
   const [reminderDate, setReminderDate] = useState<Date | undefined>();
+  const [reminderTime, setReminderTime] = useState("");
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("summarizer");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -156,15 +157,25 @@ export default function MeetingSummarizer() {
       });
       return;
     }
+
+    const finalReminderDate = new Date(reminderDate);
+    if (reminderTime) {
+      const [hours, minutes] = reminderTime.split(':').map(Number);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        finalReminderDate.setHours(hours, minutes);
+      }
+    }
+
     const newReminder: Reminder = {
       id: new Date().toISOString(),
       text: reminderText,
-      remindAt: reminderDate.getTime(),
+      remindAt: finalReminderDate.getTime(),
       summaryId: "manual", // Indicates a manually added reminder
     };
     setReminders([newReminder, ...reminders].sort((a,b) => a.remindAt - b.remindAt));
     setReminderText("");
     setReminderDate(undefined);
+    setReminderTime("");
   };
 
   const handleDeleteSummary = (id: string) => {
@@ -321,17 +332,25 @@ export default function MeetingSummarizer() {
                   value={reminderText}
                   onChange={(e) => setReminderText(e.target.value)}
                 />
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant={"outline"} className="w-full justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {reminderDate ? format(reminderDate, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={reminderDate} onSelect={setReminderDate} initialFocus />
-                  </PopoverContent>
-                </Popover>
+                <div className="flex gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant={"outline"} className="w-full justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {reminderDate ? format(reminderDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar mode="single" selected={reminderDate} onSelect={setReminderDate} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                  <Input
+                    type="time"
+                    value={reminderTime}
+                    onChange={(e) => setReminderTime(e.target.value)}
+                    className="w-[120px]"
+                  />
+                </div>
               </CardContent>
               <CardFooter>
                 <Button onClick={handleAddReminder}><Bell className="mr-2 h-4 w-4" />Add Reminder</Button>
@@ -350,7 +369,7 @@ export default function MeetingSummarizer() {
                         <div className="flex-1">
                           <p className="font-medium">{reminder.text}</p>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(reminder.remindAt), "PPP")}
+                            {format(new Date(reminder.remindAt), "PPP p")}
                           </p>
                         </div>
                         <div className="flex items-center">
