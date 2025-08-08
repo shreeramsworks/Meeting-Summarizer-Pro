@@ -57,7 +57,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
         .order('timestamp', { ascending: false });
 
       if (summariesError) {
-        console.error("Error fetching summaries:", JSON.stringify(summariesError, null, 2));
+        console.error("Error fetching summaries:", summariesError);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch saved summaries.' });
       } else {
         setSavedSummaries(summariesData || []);
@@ -70,7 +70,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
 
 
       if (remindersError) {
-        console.error("Error fetching reminders:", JSON.stringify(remindersError, null, 2));
+        console.error("Error fetching reminders:", remindersError);
         toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch reminders.' });
       } else {
         setReminders(remindersData || []);
@@ -131,10 +131,10 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   };
 
   const handleSaveSummary = async () => {
-    if (!summary) return;
+    if (!summary || !user) return;
 
-    // We don't include timestamp here because we want the DB to set it
-    const newSummaryItem: Omit<SummaryItem, 'id' | 'timestamp' | 'user_id'> = {
+    const newSummaryItem = {
+      user_id: user.id,
       transcript,
       summary,
     };
@@ -153,7 +153,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     const savedSummaryItem = data as SummaryItem;
     setSavedSummaries([savedSummaryItem, ...savedSummaries]);
     
-    const newReminders: Omit<Reminder, 'id' | 'user_id'>[] = [];
+    const newReminders: Omit<Reminder, 'id' | 'timestamp'>[] = [];
 
     // Parse action items
     const actionItemsRegex = /Action Items:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
@@ -166,6 +166,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
             const reminderDate = new Date(dueDate);
             if (!isNaN(reminderDate.getTime())) {
                 newReminders.push({
+                    user_id: user.id,
                     text: `Action: ${task} (Assigned to: ${assignee})`,
                     remindAt: reminderDate.toISOString(),
                     summaryId: savedSummaryItem.id,
@@ -185,6 +186,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
             const reminderDate = new Date(dueDate);
             if (!isNaN(reminderDate.getTime())) {
                 newReminders.push({
+                    user_id: user.id,
                     text: `Follow-up: ${reminderText} (Context: ${context})`,
                     remindAt: reminderDate.toISOString(),
                     summaryId: savedSummaryItem.id,
@@ -221,7 +223,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
 };
 
   const handleAddReminder = async () => {
-    if (!reminderText.trim() || !reminderDate) {
+    if (!reminderText.trim() || !reminderDate || !user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -238,7 +240,8 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
       }
     }
 
-    const newReminder: Omit<Reminder, 'id' | 'user_id'> = {
+    const newReminder = {
+      user_id: user.id,
       text: reminderText,
       remindAt: finalReminderDate.toISOString(),
       summaryId: manualReminderSummaryId || null,
@@ -548,3 +551,5 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     </div>
   );
 }
+
+    
