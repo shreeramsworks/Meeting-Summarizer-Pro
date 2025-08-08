@@ -138,7 +138,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   const handleSaveSummary = async () => {
     if (!summary || !user) return;
 
-    const newSummaryItem = {
+    const newSummaryItem: Omit<SummaryItem, 'id' | 'timestamp'> = {
       user_id: user.id,
       transcript,
       summary,
@@ -199,7 +199,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     }
     
     if (newRemindersToCreate.length > 0) {
-        const remindersWithUser = newRemindersToCreate.map(r => ({ ...r, user_id: user.id }));
+        const remindersWithUser = newRemindersToCreate.map(r => ({ ...r, user_id: user.id, completed: false }));
         const { data: remindersData, error: remindersError } = await supabase
             .from('reminders')
             .insert(remindersWithUser)
@@ -244,11 +244,12 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
       }
     }
 
-    const newReminder = {
+    const newReminder: Omit<Reminder, 'id' | 'timestamp'> = {
       user_id: user.id,
       text: reminderText,
       remindAt: finalReminderDate.toISOString(),
       summaryId: manualReminderSummaryId || null,
+      completed: false,
     };
     
     const { data, error } = await supabase.from('reminders').insert(newReminder).select().single();
@@ -340,7 +341,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push('/');
+    router.refresh();
   };
 
 
