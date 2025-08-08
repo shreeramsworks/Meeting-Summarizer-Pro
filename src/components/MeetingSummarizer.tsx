@@ -57,7 +57,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
         .order('timestamp', { ascending: false });
 
       if (summariesError) {
-        console.error("Error fetching summaries:", summariesError);
+        console.error("Error fetching summaries:", JSON.stringify(summariesError, null, 2));
         toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch saved summaries.' });
       } else {
         setSavedSummaries(summariesData || []);
@@ -69,7 +69,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
         .order('remindAt', { ascending: true });
 
       if (remindersError) {
-        console.error("Error fetching reminders:", remindersError);
+        console.error("Error fetching reminders:", JSON.stringify(remindersError, null, 2));
         toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch reminders.' });
       } else {
         setReminders(remindersData || []);
@@ -551,3 +551,5 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     </div>
   );
 }
+
+    

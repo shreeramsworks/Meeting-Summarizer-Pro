@@ -1,42 +1,81 @@
+-- Drop existing tables and policies if they exist, for a clean setup.
+DROP POLICY IF EXISTS "Allow users to manage their own reminders" ON reminders;
+DROP POLICY IF EXISTS "Allow users to manage their own summaries" ON summaries;
+DROP TABLE IF EXISTS reminders;
+DROP TABLE IF EXISTS summaries;
 
 -- Create summaries table
 CREATE TABLE summaries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
-  transcript TEXT NOT NULL,
-  summary TEXT NOT NULL,
-  timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    transcript TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
-
--- Enable Row Level Security for summaries
-ALTER TABLE summaries ENABLE ROW LEVEL SECURITY;
-
--- Create policy for users to manage their own summaries
-CREATE POLICY "Users can manage their own summaries"
-ON summaries
-FOR ALL
-USING (auth.uid() = user_id);
-
 
 -- Create reminders table
 CREATE TABLE reminders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) NOT NULL,
-  summary_id UUID REFERENCES summaries(id) ON DELETE CASCADE,
-  text TEXT NOT NULL,
-  remind_at TIMESTAMPTZ NOT NULL
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    text TEXT NOT NULL,
+    "remindAt" TIMESTAMPTZ NOT NULL,
+    "summaryId" UUID REFERENCES summaries(id) ON DELETE CASCADE
 );
 
--- Enable Row Level Security for reminders
+-- Enable Row Level Security (RLS) for both tables
+ALTER TABLE summaries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reminders ENABLE ROW LEVEL SECURITY;
 
--- Create policy for users to manage their own reminders
-CREATE POLICY "Users can manage their own reminders"
-ON reminders
-FOR ALL
+-- Create policies for the summaries table
+CREATE POLICY "Allow individual read access on summaries"
+ON summaries
+FOR SELECT
+TO authenticated
 USING (auth.uid() = user_id);
 
--- Create a 'full_name' column in the auth.users table metadata
--- This is just an example, if you have other user data you'd like to store, you can add it here.
--- Note: This is illustrative. The user's full_name is typically stored in the 'raw_user_meta_data' JSONB column.
--- The signup logic already handles adding the full name. This comment is for informational purposes.
+CREATE POLICY "Allow individual insert access on summaries"
+ON summaries
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Allow individual update access on summaries"
+ON summaries
+FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Allow individual delete access on summaries"
+ON summaries
+FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);
+
+-- Create policies for the reminders table
+CREATE POLICY "Allow individual read access on reminders"
+ON reminders
+FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Allow individual insert access on reminders"
+ON reminders
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Allow individual update access on reminders"
+ON reminders
+FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Allow individual delete access on reminders"
+ON reminders
+FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);
+
+    
