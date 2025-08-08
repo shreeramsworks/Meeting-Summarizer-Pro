@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -12,9 +13,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 type AuthFormProps = {
   mode: "login" | "signup";
+  onClose: () => void;
 };
 
-export default function AuthForm({ mode }: AuthFormProps) {
+export default function AuthForm({ mode, onClose }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -55,7 +57,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
               title: "Success!",
               description: "Please check your email to confirm your account.",
             });
-            router.push("/");
+            onClose();
          }
       }
     } else {
@@ -79,7 +81,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
   };
 
   return (
-    <Dialog open onOpenChange={() => router.push("/")}>
+    <Dialog open onOpenChange={onClose}>
         <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <div className="flex items-center justify-center mb-4">
