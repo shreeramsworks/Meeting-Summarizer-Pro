@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { SummaryHistoryItem, Reminder } from "@/lib/types";
+import type { SummaryItem, Reminder } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeMeetingTranscript } from "@/ai/flows/summarize-meeting";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, History, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload } from "lucide-react";
+import { FileText, Save, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload, Link as LinkIcon } from "lucide-react";
 import { format } from "date-fns";
 
 const WEBHOOK_URL = "https://adapted-mentally-chimp.ngrok-free.app/webhook-test/meetingsummerize";
@@ -23,19 +23,20 @@ export default function MeetingSummarizer() {
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [history, setHistory] = useState<SummaryHistoryItem[]>([]);
+  const [savedSummaries, setSavedSummaries] = useState<SummaryItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [reminderText, setReminderText] = useState("");
   const [reminderDate, setReminderDate] = useState<Date | undefined>();
   const [isMounted, setIsMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState("summarizer");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
     try {
-      const storedHistory = localStorage.getItem("meeting_history");
-      if (storedHistory) {
-        setHistory(JSON.parse(storedHistory));
+      const storedSummaries = localStorage.getItem("saved_summaries");
+      if (storedSummaries) {
+        setSavedSummaries(JSON.parse(storedSummaries));
       }
       const storedReminders = localStorage.getItem("meeting_reminders");
       if (storedReminders) {
@@ -48,9 +49,9 @@ export default function MeetingSummarizer() {
 
   useEffect(() => {
     if(isMounted) {
-        localStorage.setItem("meeting_history", JSON.stringify(history));
+        localStorage.setItem("saved_summaries", JSON.stringify(savedSummaries));
     }
-  }, [history, isMounted]);
+  }, [savedSummaries, isMounted]);
 
   useEffect(() => {
     if(isMounted) {
@@ -93,13 +94,6 @@ export default function MeetingSummarizer() {
         webhookUrl: WEBHOOK_URL,
       });
       setSummary(result.summary);
-      const newHistoryItem: SummaryHistoryItem = {
-        id: new Date().toISOString(),
-        transcript,
-        summary: result.summary,
-        timestamp: Date.now(),
-      };
-      setHistory([newHistoryItem, ...history]);
     } catch (error) {
       console.error(error);
       toast({
@@ -110,6 +104,47 @@ export default function MeetingSummarizer() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSaveSummary = () => {
+    if (!summary) return;
+
+    const newSummaryItem: SummaryItem = {
+        id: new Date().toISOString(),
+        transcript,
+        summary,
+        timestamp: Date.now(),
+    };
+    
+    setSavedSummaries([newSummaryItem, ...savedSummaries]);
+
+    // Parse action items and create reminders
+    const actionItemsRegex = /Action Items:\n(  - .+\n)+/g;
+    const itemRegex = /  - (.*) \(Assignee: (.*), Due: (.*)\)/g;
+    const actionItemsMatch = summary.match(actionItemsRegex);
+    
+    if (actionItemsMatch) {
+      const newReminders: Reminder[] = [];
+      let match;
+      while ((match = itemRegex.exec(actionItemsMatch[0])) !== null) {
+          const [, task, assignee, dueDate] = match;
+          const reminderDate = new Date(dueDate);
+          if (!isNaN(reminderDate.getTime())) {
+              newReminders.push({
+                  id: new Date().toISOString() + task,
+                  text: `${task} (Assigned to: ${assignee})`,
+                  remindAt: reminderDate.getTime(),
+                  summaryId: newSummaryItem.id,
+              });
+          }
+      }
+      setReminders(prev => [...prev, ...newReminders].sort((a,b) => a.remindAt - b.remindAt));
+    }
+
+    toast({
+        title: "Success",
+        description: "Summary saved and reminders created for action items.",
+    });
   };
 
   const handleAddReminder = () => {
@@ -125,19 +160,35 @@ export default function MeetingSummarizer() {
       id: new Date().toISOString(),
       text: reminderText,
       remindAt: reminderDate.getTime(),
+      summaryId: "manual", // Indicates a manually added reminder
     };
     setReminders([newReminder, ...reminders].sort((a,b) => a.remindAt - b.remindAt));
     setReminderText("");
     setReminderDate(undefined);
   };
 
-  const handleDeleteHistory = (id: string) => {
-    setHistory(history.filter((item) => item.id !== id));
+  const handleDeleteSummary = (id: string) => {
+    setSavedSummaries(savedSummaries.filter((item) => item.id !== id));
+    // Also delete associated reminders
+    setReminders(reminders.filter(r => r.summaryId !== id));
   };
 
   const handleDeleteReminder = (id: string) => {
     setReminders(reminders.filter((item) => item.id !== id));
   };
+  
+  const handleReminderLinkClick = (summaryId: string) => {
+    setActiveTab("saved");
+    // We can't directly open the accordion, but we can scroll to it.
+    setTimeout(() => {
+        const element = document.getElementById(`summary-item-${summaryId}`);
+        if(element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            (element.querySelector('[data-radix-collection-item]') as HTMLElement)?.click();
+        }
+    }, 100);
+  };
+
 
   if (!isMounted) {
     return (
@@ -157,10 +208,10 @@ export default function MeetingSummarizer() {
         </div>
       </header>
 
-      <Tabs defaultValue="summarizer" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="summarizer"><FileText className="mr-2 h-4 w-4" />Summarizer</TabsTrigger>
-          <TabsTrigger value="history"><History className="mr-2 h-4 w-4" />History</TabsTrigger>
+          <TabsTrigger value="saved"><Save className="mr-2 h-4 w-4" />Saved</TabsTrigger>
           <TabsTrigger value="reminders"><Bell className="mr-2 h-4 w-4" />Reminders</TabsTrigger>
         </TabsList>
         <TabsContent value="summarizer" className="mt-6">
@@ -201,7 +252,7 @@ export default function MeetingSummarizer() {
             <Card>
               <CardHeader>
                 <CardTitle>Summary</CardTitle>
-                <CardDescription>The generated summary will appear here.</CardDescription>
+                <CardDescription>The generated summary will appear here. Save it to create reminders.</CardDescription>
               </CardHeader>
               <CardContent className="min-h-[150px]">
                 {isLoading ? (
@@ -216,20 +267,25 @@ export default function MeetingSummarizer() {
                   <p className="text-sm text-muted-foreground">No summary generated yet.</p>
                 )}
               </CardContent>
+              {summary && !isLoading && (
+                  <CardFooter>
+                      <Button onClick={handleSaveSummary}><Save className="mr-2 h-4 w-4" />Save Summary</Button>
+                  </CardFooter>
+              )}
             </Card>
           </div>
         </TabsContent>
-        <TabsContent value="history" className="mt-6">
+        <TabsContent value="saved" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Past Summaries</CardTitle>
-              <CardDescription>Review your previously generated summaries.</CardDescription>
+              <CardTitle>Saved Summaries</CardTitle>
+              <CardDescription>Review your previously saved summaries.</CardDescription>
             </CardHeader>
             <CardContent>
-              {history.length > 0 ? (
+              {savedSummaries.length > 0 ? (
                 <Accordion type="single" collapsible className="w-full">
-                  {history.map((item) => (
-                    <AccordionItem value={item.id} key={item.id}>
+                  {savedSummaries.map((item) => (
+                    <AccordionItem value={item.id} key={item.id} id={`summary-item-${item.id}`}>
                       <AccordionTrigger>
                         <div className="flex justify-between w-full pr-4 items-center">
                           <span>Summary from {format(new Date(item.timestamp), "PPP p")}</span>
@@ -238,7 +294,7 @@ export default function MeetingSummarizer() {
                       <AccordionContent className="p-4 bg-muted/50 rounded-md">
                         <h4 className="font-semibold mb-2">Summary:</h4>
                         <p className="text-sm whitespace-pre-wrap mb-4 font-sans">{item.summary}</p>
-                        <Button variant="destructive" size="sm" onClick={() => handleDeleteHistory(item.id)}>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteSummary(item.id)}>
                           <Trash2 className="mr-2 h-4 w-4" />
                           Delete
                         </Button>
@@ -247,7 +303,7 @@ export default function MeetingSummarizer() {
                   ))}
                 </Accordion>
               ) : (
-                <p className="text-sm text-muted-foreground">No history available.</p>
+                <p className="text-sm text-muted-foreground">No saved summaries.</p>
               )}
             </CardContent>
           </Card>
@@ -256,8 +312,8 @@ export default function MeetingSummarizer() {
           <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Set a Reminder</CardTitle>
-                <CardDescription>Add a new reminder for your action items.</CardDescription>
+                <CardTitle>Set a Manual Reminder</CardTitle>
+                <CardDescription>Add a new reminder for items not in a summary.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Input
@@ -291,15 +347,22 @@ export default function MeetingSummarizer() {
                   <ul className="space-y-3">
                     {reminders.map((reminder) => (
                       <li key={reminder.id} className="flex items-center justify-between p-3 rounded-md border bg-card">
-                        <div>
+                        <div className="flex-1">
                           <p className="font-medium">{reminder.text}</p>
                           <p className="text-sm text-muted-foreground">
                             {format(new Date(reminder.remindAt), "PPP")}
                           </p>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(reminder.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <div className="flex items-center">
+                          {reminder.summaryId !== "manual" && (
+                            <Button variant="ghost" size="icon" onClick={() => handleReminderLinkClick(reminder.summaryId)}>
+                                <LinkIcon className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(reminder.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </li>
                     ))}
                   </ul>
