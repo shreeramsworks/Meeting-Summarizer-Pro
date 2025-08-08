@@ -13,9 +13,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Save, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload, Link as LinkIcon, Clock } from "lucide-react";
+import { FileText, Save, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload, Link as LinkIcon, User, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 
 const WEBHOOK_URL = "https://adapted-mentally-chimp.ngrok-free.app/webhook-test/meetingsummerize";
@@ -242,12 +244,44 @@ export default function MeetingSummarizer() {
 
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-      <header className="flex items-center gap-4 mb-8">
-        <FileText className="h-10 w-10 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold font-headline">Meeting Summarizer Pro</h1>
-          <p className="text-muted-foreground">Your AI-powered meeting assistant</p>
+      <header className="flex items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-4">
+            <FileText className="h-10 w-10 text-primary" />
+            <div>
+              <h1 className="text-3xl font-bold font-headline">Meeting Summarizer Pro</h1>
+              <p className="text-muted-foreground">Your AI-powered meeting assistant</p>
+            </div>
         </div>
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar className="h-10 w-10">
+                        <AvatarFallback>
+                            <User className="h-5 w-5" />
+                        </AvatarFallback>
+                    </Avatar>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">John Doe</p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                            john.doe@example.com
+                        </p>
+                    </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign Out</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    <span>Delete Account</span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
