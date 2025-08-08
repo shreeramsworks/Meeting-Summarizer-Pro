@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FileText, Save, Bell, Calendar as CalendarIcon, Trash2, Loader2, Send, Upload, Link as LinkIcon, User, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,9 +22,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 
 const WEBHOOK_URL = "https://adapted-mentally-chimp.ngrok-free.app/webhook-test/meetingsummerize";
+const DELETE_SUMMARY_WEBHOOK_URL = "https://adapted-mentally-chimp.ngrok-free.app/webhook-test/email-delete-summary";
 
 type MeetingSummarizerProps = {
   user: SupabaseUser;
@@ -58,20 +61,20 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
 
       if (summariesError) {
         console.error("Error fetching summaries:", summariesError);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch saved summaries.' });
+        toast({ variant: 'destructive', title: 'Error fetching summaries', description: summariesError.message });
       } else {
         setSavedSummaries(summariesData || []);
       }
       
       const { data: remindersData, error: remindersError } = await supabase
         .from('reminders')
-        .select('*, remindAt:remindAt')
+        .select('*')
         .order('remindAt', { ascending: true });
 
 
       if (remindersError) {
         console.error("Error fetching reminders:", remindersError);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch reminders.' });
+        toast({ variant: 'destructive', title: 'Error fetching reminders', description: remindersError.message });
       } else {
         setReminders(remindersData || []);
       }
@@ -153,7 +156,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     const savedSummaryItem = data as SummaryItem;
     setSavedSummaries([savedSummaryItem, ...savedSummaries]);
     
-    const newReminders: Omit<Reminder, 'id' | 'timestamp'>[] = [];
+    const newRemindersToCreate: Omit<Reminder, 'id' | 'timestamp' | 'completed' | 'user_id'>[] = [];
 
     // Parse action items
     const actionItemsRegex = /Action Items:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
@@ -165,8 +168,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
             const [, task, assignee, dueDate] = match;
             const reminderDate = new Date(dueDate);
             if (!isNaN(reminderDate.getTime())) {
-                newReminders.push({
-                    user_id: user.id,
+                newRemindersToCreate.push({
                     text: `Action: ${task} (Assigned to: ${assignee})`,
                     remindAt: reminderDate.toISOString(),
                     summaryId: savedSummaryItem.id,
@@ -185,8 +187,7 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
             const [, reminderText, dueDate, context] = match;
             const reminderDate = new Date(dueDate);
             if (!isNaN(reminderDate.getTime())) {
-                newReminders.push({
-                    user_id: user.id,
+                newRemindersToCreate.push({
                     text: `Follow-up: ${reminderText} (Context: ${context})`,
                     remindAt: reminderDate.toISOString(),
                     summaryId: savedSummaryItem.id,
@@ -195,10 +196,11 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
         }
     }
     
-    if (newReminders.length > 0) {
+    if (newRemindersToCreate.length > 0) {
+        const remindersWithUser = newRemindersToCreate.map(r => ({ ...r, user_id: user.id }));
         const { data: remindersData, error: remindersError } = await supabase
             .from('reminders')
-            .insert(newReminders)
+            .insert(remindersWithUser)
             .select();
 
         if (remindersError) {
@@ -263,20 +265,36 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   };
 
   const handleDeleteSummary = async (id: string) => {
-    // Delete associated reminders first
-    const { error: reminderError } = await supabase.from('reminders').delete().match({ summaryId: id });
-    if(reminderError) {
-        toast({ variant: 'destructive', title: 'Error', description: `Could not delete associated reminders: ${reminderError.message}` });
-        return;
-    }
-    setReminders(reminders.filter(r => r.summaryId !== id));
+    const summaryToDelete = savedSummaries.find(s => s.id === id);
+    if (!summaryToDelete) return;
 
+    // Send webhook
+    try {
+        await fetch(DELETE_SUMMARY_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: user.user_metadata.full_name,
+                email: user.email,
+                summary: summaryToDelete.summary,
+                transcript: summaryToDelete.transcript,
+            }),
+        });
+    } catch (e) {
+        console.error("Failed to send delete summary webhook", e);
+        // Do not block deletion if webhook fails
+    }
+    
+    // Because of 'ON DELETE CASCADE', we only need to delete the summary.
+    // The database will handle deleting associated reminders.
     const { error } = await supabase.from('summaries').delete().match({ id });
+
     if (error) {
         toast({ variant: 'destructive', title: 'Error', description: `Could not delete summary: ${error.message}` });
     } else {
         setSavedSummaries(savedSummaries.filter((item) => item.id !== id));
-        toast({ title: 'Success', description: 'Summary deleted.' });
+        setReminders(reminders.filter(r => r.summaryId !== id)); // Also update client state
+        toast({ title: 'Success', description: 'Summary and associated reminders deleted.' });
     }
   };
 
@@ -287,6 +305,21 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     } else {
         setReminders(reminders.filter((item) => item.id !== id));
         toast({ title: 'Success', description: 'Reminder deleted.' });
+    }
+  };
+
+  const handleToggleReminder = async (id: string, completed: boolean) => {
+    const { data, error } = await supabase
+        .from('reminders')
+        .update({ completed: !completed })
+        .match({ id })
+        .select()
+        .single();
+    
+    if (error || !data) {
+        toast({ variant: 'destructive', title: 'Error', description: `Could not update reminder: ${error?.message}` });
+    } else {
+        setReminders(reminders.map(r => r.id === id ? data as Reminder : r));
     }
   };
   
@@ -521,11 +554,18 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
                   <ul className="space-y-3">
                     {reminders.map((reminder) => (
                       <li key={reminder.id} className="flex items-center justify-between p-3 rounded-md border bg-card hover:bg-muted/50 transition-colors">
-                        <div className="flex-1">
-                          <p className="font-medium">{reminder.text}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(reminder.remindAt), "PPP p")}
-                          </p>
+                        <div className="flex items-center gap-3 flex-1">
+                          <Checkbox
+                            id={`reminder-${reminder.id}`}
+                            checked={reminder.completed}
+                            onCheckedChange={() => handleToggleReminder(reminder.id, reminder.completed)}
+                          />
+                          <div className="flex-1">
+                            <label htmlFor={`reminder-${reminder.id}`} className={cn("font-medium cursor-pointer", reminder.completed && "line-through text-muted-foreground")}>{reminder.text}</label>
+                            <p className={cn("text-sm text-muted-foreground", reminder.completed && "line-through")}>
+                              {format(new Date(reminder.remindAt), "PPP p")}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center">
                           {reminder.summaryId && (
@@ -551,5 +591,3 @@ export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
     </div>
   );
 }
-
-    

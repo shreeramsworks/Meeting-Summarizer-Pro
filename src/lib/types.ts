@@ -13,6 +13,5 @@ export interface Reminder {
   remindAt: string;
   summaryId: string | null;
   timestamp: string;
+  completed: boolean;
 }
-
-    

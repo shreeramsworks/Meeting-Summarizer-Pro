@@ -1,4 +1,4 @@
--- Drop existing tables if they exist, for a clean setup.
+-- Drop existing tables if they exist for a clean setup.
 DROP TABLE IF EXISTS reminders;
 DROP TABLE IF EXISTS summaries;
 
@@ -17,7 +17,9 @@ CREATE TABLE reminders (
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
     text TEXT NOT NULL,
     "remindAt" TIMESTAMPTZ NOT NULL,
-    "summaryId" UUID REFERENCES summaries(id) ON DELETE CASCADE
+    "summaryId" UUID REFERENCES summaries(id) ON DELETE CASCADE,
+    timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    completed BOOLEAN DEFAULT FALSE NOT NULL
 );
 
 -- Enable Row Level Security (RLS) for both tables
