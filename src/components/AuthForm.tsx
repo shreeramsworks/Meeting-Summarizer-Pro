@@ -46,6 +46,8 @@ export default function AuthForm({ mode, onClose }: AuthFormProps) {
           description: error.message,
         });
       } else if (data.user) {
+         // Supabase returns a user object with identities when a user is new.
+         // If the identities array is empty, it means the user already exists.
          if (data.user.identities?.length === 0) {
             toast({
                 variant: "destructive",
@@ -73,8 +75,9 @@ export default function AuthForm({ mode, onClose }: AuthFormProps) {
           description: error.message,
         });
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        // Use window.location.href to force a full page reload
+        // This ensures the middleware correctly recognizes the new session.
+        window.location.href = "/dashboard";
       }
     }
     setIsLoading(false);
