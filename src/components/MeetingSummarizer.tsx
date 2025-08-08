@@ -110,46 +110,72 @@ export default function MeetingSummarizer() {
     }
   };
 
-  const handleSaveSummary = () => {
-    if (!summary) return;
+    const handleSaveSummary = () => {
+        if (!summary) return;
 
-    const newSummaryItem: SummaryItem = {
-        id: new Date().toISOString(),
-        transcript,
-        summary,
-        timestamp: Date.now(),
+        const newSummaryItem: SummaryItem = {
+            id: new Date().toISOString(),
+            transcript,
+            summary,
+            timestamp: Date.now(),
+        };
+
+        setSavedSummaries([newSummaryItem, ...savedSummaries]);
+        const newReminders: Reminder[] = [];
+
+        // Parse action items
+        const actionItemsRegex = /Action Items:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
+        const actionItemsMatch = summary.match(actionItemsRegex);
+        if (actionItemsMatch) {
+            const itemRegex = /  - (.*) \(Assignee: (.*), Due: (.*)\)/g;
+            let match;
+            while ((match = itemRegex.exec(actionItemsMatch[1])) !== null) {
+                const [, task, assignee, dueDate] = match;
+                const reminderDate = new Date(dueDate);
+                if (!isNaN(reminderDate.getTime())) {
+                    newReminders.push({
+                        id: `${newSummaryItem.id}-action-${task.slice(0, 10)}`,
+                        text: `Action: ${task} (Assigned to: ${assignee})`,
+                        remindAt: reminderDate.getTime(),
+                        summaryId: newSummaryItem.id,
+                    });
+                }
+            }
+        }
+
+        // Parse follow-up reminders
+        const followUpRegex = /Follow-up Reminders:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
+        const followUpMatch = summary.match(followUpRegex);
+        if (followUpMatch) {
+            const itemRegex = /  - (.*) \(Due: (.*), Context: (.*)\)/g;
+            let match;
+            while ((match = itemRegex.exec(followUpMatch[1])) !== null) {
+                const [, reminderText, dueDate, context] = match;
+                const reminderDate = new Date(dueDate);
+                if (!isNaN(reminderDate.getTime())) {
+                    newReminders.push({
+                        id: `${newSummaryItem.id}-followup-${reminderText.slice(0,10)}`,
+                        text: `Follow-up: ${reminderText} (Context: ${context})`,
+                        remindAt: reminderDate.getTime(),
+                        summaryId: newSummaryItem.id,
+                    });
+                }
+            }
+        }
+        
+        if (newReminders.length > 0) {
+            setReminders(prev => [...prev, ...newReminders].sort((a,b) => a.remindAt - b.remindAt));
+            toast({
+                title: "Success",
+                description: "Summary saved and reminders created for action items and follow-ups.",
+            });
+        } else {
+             toast({
+                title: "Success",
+                description: "Summary saved.",
+            });
+        }
     };
-    
-    setSavedSummaries([newSummaryItem, ...savedSummaries]);
-
-    // Parse action items and create reminders
-    const actionItemsRegex = /Action Items:\n(  - .+\n)+/g;
-    const itemRegex = /  - (.*) \(Assignee: (.*), Due: (.*)\)/g;
-    const actionItemsMatch = summary.match(actionItemsRegex);
-    
-    if (actionItemsMatch) {
-      const newReminders: Reminder[] = [];
-      let match;
-      while ((match = itemRegex.exec(actionItemsMatch[0])) !== null) {
-          const [, task, assignee, dueDate] = match;
-          const reminderDate = new Date(dueDate);
-          if (!isNaN(reminderDate.getTime())) {
-              newReminders.push({
-                  id: new Date().toISOString() + task,
-                  text: `${task} (Assigned to: ${assignee})`,
-                  remindAt: reminderDate.getTime(),
-                  summaryId: newSummaryItem.id,
-              });
-          }
-      }
-      setReminders(prev => [...prev, ...newReminders].sort((a,b) => a.remindAt - b.remindAt));
-    }
-
-    toast({
-        title: "Success",
-        description: "Summary saved and reminders created for action items.",
-    });
-  };
 
   const handleAddReminder = () => {
     if (!reminderText.trim() || !reminderDate) {
@@ -309,6 +335,8 @@ export default function MeetingSummarizer() {
                       <AccordionContent className="p-4 bg-muted/50 rounded-md">
                         <h4 className="font-semibold mb-2">Summary:</h4>
                         <p className="text-sm whitespace-pre-wrap mb-4 font-sans">{item.summary}</p>
+                        <h4 className="font-semibold mb-2 mt-4">Original Transcript:</h4>
+                        <p className="text-xs whitespace-pre-wrap mb-4 font-sans bg-background p-2 rounded-md">{item.transcript}</p>
                         <Button variant="destructive" size="sm" onClick={() => handleDeleteSummary(item.id)}>
                           <Trash2 className="mr-2 h-4 w-4" />
                           Delete
@@ -354,7 +382,7 @@ export default function MeetingSummarizer() {
                             type="time"
                             value={reminderTime}
                             onChange={(e) => setReminderTime(e.target.value)}
-                            className="pl-10 w-full"
+                            className="pl-10 w-full border-white"
                         />
                     </div>
                  </div>
@@ -391,11 +419,11 @@ export default function MeetingSummarizer() {
                         </div>
                         <div className="flex items-center">
                           {reminder.summaryId !== "manual" && (
-                            <Button variant="ghost" size="icon" onClick={() => handleReminderLinkClick(reminder.summaryId)}>
+                            <Button variant="ghost" size="icon" onClick={() => handleReminderLinkClick(reminder.summaryId)} title="Go to summary">
                                 <LinkIcon className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(reminder.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(reminder.id)} title="Delete reminder">
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
