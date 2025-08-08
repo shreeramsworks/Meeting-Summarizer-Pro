@@ -18,53 +18,69 @@ import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 
 const WEBHOOK_URL = "https://adapted-mentally-chimp.ngrok-free.app/webhook-test/meetingsummerize";
 
-export default function MeetingSummarizer() {
+type MeetingSummarizerProps = {
+  user: SupabaseUser;
+};
+
+export default function MeetingSummarizer({ user }: MeetingSummarizerProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const supabase = createClient();
   const [transcript, setTranscript] = useState("");
   const [summary, setSummary] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [savedSummaries, setSavedSummaries] = useState<SummaryItem[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [reminderText, setReminderText] = useState("");
   const [reminderDate, setReminderDate] = useState<Date | undefined>();
   const [reminderTime, setReminderTime] = useState("");
   const [manualReminderSummaryId, setManualReminderSummaryId] = useState<string | undefined>();
-  const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("summarizer");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setIsMounted(true);
-    try {
-      const storedSummaries = localStorage.getItem("saved_summaries");
-      if (storedSummaries) {
-        setSavedSummaries(JSON.parse(storedSummaries));
-      }
-      const storedReminders = localStorage.getItem("meeting_reminders");
-      if (storedReminders) {
-        setReminders(JSON.parse(storedReminders));
-      }
-    } catch (error) {
-      console.error("Failed to parse from localStorage", error);
-    }
-  }, []);
+    const fetchData = async () => {
+      setIsDataLoading(true);
+      
+      const { data: summariesData, error: summariesError } = await supabase
+        .from('summaries')
+        .select('*')
+        .order('timestamp', { ascending: false });
 
-  useEffect(() => {
-    if(isMounted) {
-        localStorage.setItem("saved_summaries", JSON.stringify(savedSummaries));
-    }
-  }, [savedSummaries, isMounted]);
+      if (summariesError) {
+        console.error("Error fetching summaries:", summariesError);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch saved summaries.' });
+      } else {
+        setSavedSummaries(summariesData || []);
+      }
+      
+      const { data: remindersData, error: remindersError } = await supabase
+        .from('reminders')
+        .select('*')
+        .order('remindAt', { ascending: true });
 
-  useEffect(() => {
-    if(isMounted) {
-        localStorage.setItem("meeting_reminders", JSON.stringify(reminders));
-    }
-  }, [reminders, isMounted]);
+      if (remindersError) {
+        console.error("Error fetching reminders:", remindersError);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch reminders.' });
+      } else {
+        setReminders(remindersData || []);
+      }
+
+      setIsDataLoading(false);
+    };
+
+    fetchData();
+  }, [supabase, toast]);
+
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -113,74 +129,96 @@ export default function MeetingSummarizer() {
     }
   };
 
-    const handleSaveSummary = () => {
-        if (!summary) return;
+  const handleSaveSummary = async () => {
+    if (!summary) return;
 
-        const newSummaryItem: SummaryItem = {
-            id: new Date().toISOString(),
-            transcript,
-            summary,
-            timestamp: Date.now(),
-        };
+    const newSummaryItem: Omit<SummaryItem, 'id' | 'timestamp' | 'user_id'> = {
+      transcript,
+      summary,
+    };
 
-        setSavedSummaries([newSummaryItem, ...savedSummaries]);
-        const newReminders: Reminder[] = [];
+    const { data, error } = await supabase
+        .from('summaries')
+        .insert(newSummaryItem)
+        .select()
+        .single();
+    
+    if (error || !data) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to save summary.' });
+        return;
+    }
 
-        // Parse action items
-        const actionItemsRegex = /Action Items:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
-        const actionItemsMatch = summary.match(actionItemsRegex);
-        if (actionItemsMatch) {
-            const itemRegex = /  - (.*) \(Assignee: (.*), Due: (.*)\)/g;
-            let match;
-            while ((match = itemRegex.exec(actionItemsMatch[1])) !== null) {
-                const [, task, assignee, dueDate] = match;
-                const reminderDate = new Date(dueDate);
-                if (!isNaN(reminderDate.getTime())) {
-                    newReminders.push({
-                        id: `${newSummaryItem.id}-action-${task.slice(0, 10)}`,
-                        text: `Action: ${task} (Assigned to: ${assignee})`,
-                        remindAt: reminderDate.getTime(),
-                        summaryId: newSummaryItem.id,
-                    });
-                }
+    const savedSummaryItem = data as SummaryItem;
+    setSavedSummaries([savedSummaryItem, ...savedSummaries]);
+    
+    const newReminders: Omit<Reminder, 'id' | 'user_id'>[] = [];
+
+    // Parse action items
+    const actionItemsRegex = /Action Items:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
+    const actionItemsMatch = summary.match(actionItemsRegex);
+    if (actionItemsMatch) {
+        const itemRegex = /  - (.*) \(Assignee: (.*), Due: (.*)\)/g;
+        let match;
+        while ((match = itemRegex.exec(actionItemsMatch[1])) !== null) {
+            const [, task, assignee, dueDate] = match;
+            const reminderDate = new Date(dueDate);
+            if (!isNaN(reminderDate.getTime())) {
+                newReminders.push({
+                    text: `Action: ${task} (Assigned to: ${assignee})`,
+                    remindAt: reminderDate.getTime(),
+                    summaryId: savedSummaryItem.id,
+                });
             }
         }
+    }
 
-        // Parse follow-up reminders
-        const followUpRegex = /Follow-up Reminders:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
-        const followUpMatch = summary.match(followUpRegex);
-        if (followUpMatch) {
-            const itemRegex = /  - (.*) \(Due: (.*), Context: (.*)\)/g;
-            let match;
-            while ((match = itemRegex.exec(followUpMatch[1])) !== null) {
-                const [, reminderText, dueDate, context] = match;
-                const reminderDate = new Date(dueDate);
-                if (!isNaN(reminderDate.getTime())) {
-                    newReminders.push({
-                        id: `${newSummaryItem.id}-followup-${reminderText.slice(0,10)}`,
-                        text: `Follow-up: ${reminderText} (Context: ${context})`,
-                        remindAt: reminderDate.getTime(),
-                        summaryId: newSummaryItem.id,
-                    });
-                }
+    // Parse follow-up reminders
+    const followUpRegex = /Follow-up Reminders:\n([\s\S]*?)(?=\n\n[A-Z]|$)/;
+    const followUpMatch = summary.match(followUpRegex);
+    if (followUpMatch) {
+        const itemRegex = /  - (.*) \(Due: (.*), Context: (.*)\)/g;
+        let match;
+        while ((match = itemRegex.exec(followUpMatch[1])) !== null) {
+            const [, reminderText, dueDate, context] = match;
+            const reminderDate = new Date(dueDate);
+            if (!isNaN(reminderDate.getTime())) {
+                newReminders.push({
+                    text: `Follow-up: ${reminderText} (Context: ${context})`,
+                    remindAt: reminderDate.getTime(),
+                    summaryId: savedSummaryItem.id,
+                });
             }
         }
-        
-        if (newReminders.length > 0) {
-            setReminders(prev => [...prev, ...newReminders].sort((a,b) => a.remindAt - b.remindAt));
+    }
+    
+    if (newReminders.length > 0) {
+        const { data: remindersData, error: remindersError } = await supabase
+            .from('reminders')
+            .insert(newReminders)
+            .select();
+
+        if (remindersError) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to save reminders.' });
+        } else if (remindersData) {
+            setReminders(prev => [...prev, ...remindersData].sort((a,b) => a.remindAt - b.remindAt));
             toast({
                 title: "Success",
                 description: "Summary saved and reminders created for action items and follow-ups.",
             });
-        } else {
-             toast({
-                title: "Success",
-                description: "Summary saved.",
-            });
         }
-    };
+    } else {
+          toast({
+            title: "Success",
+            description: "Summary saved.",
+        });
+    }
 
-  const handleAddReminder = () => {
+    setSummary('');
+    setTranscript('');
+    setActiveTab('saved');
+};
+
+  const handleAddReminder = async () => {
     if (!reminderText.trim() || !reminderDate) {
       toast({
         variant: "destructive",
@@ -198,30 +236,57 @@ export default function MeetingSummarizer() {
       }
     }
 
-    const newReminder: Reminder = {
-      id: new Date().toISOString(),
+    const newReminder: Omit<Reminder, 'id' | 'user_id'> = {
       text: reminderText,
       remindAt: finalReminderDate.getTime(),
-      summaryId: manualReminderSummaryId || "manual",
+      summaryId: manualReminderSummaryId || null,
     };
-    setReminders([newReminder, ...reminders].sort((a,b) => a.remindAt - b.remindAt));
+    
+    const { data, error } = await supabase.from('reminders').insert(newReminder).select().single();
+
+    if (error || !data) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to add reminder.' });
+        return;
+    }
+
+    setReminders([data as Reminder, ...reminders].sort((a,b) => a.remindAt - b.remindAt));
     setReminderText("");
     setReminderDate(undefined);
     setReminderTime("");
     setManualReminderSummaryId(undefined);
+    toast({ title: 'Success', description: 'Manual reminder added.' });
   };
 
-  const handleDeleteSummary = (id: string) => {
-    setSavedSummaries(savedSummaries.filter((item) => item.id !== id));
-    // Also delete associated reminders
+  const handleDeleteSummary = async (id: string) => {
+    // Delete associated reminders first
+    const { error: reminderError } = await supabase.from('reminders').delete().match({ summaryId: id });
+    if(reminderError) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete associated reminders.' });
+        return;
+    }
     setReminders(reminders.filter(r => r.summaryId !== id));
+
+    const { error } = await supabase.from('summaries').delete().match({ id });
+    if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete summary.' });
+    } else {
+        setSavedSummaries(savedSummaries.filter((item) => item.id !== id));
+        toast({ title: 'Success', description: 'Summary deleted.' });
+    }
   };
 
-  const handleDeleteReminder = (id: string) => {
-    setReminders(reminders.filter((item) => item.id !== id));
+  const handleDeleteReminder = async (id: string) => {
+    const { error } = await supabase.from('reminders').delete().match({ id });
+    if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not delete reminder.' });
+    } else {
+        setReminders(reminders.filter((item) => item.id !== id));
+        toast({ title: 'Success', description: 'Reminder deleted.' });
+    }
   };
   
-  const handleReminderLinkClick = (summaryId: string) => {
+  const handleReminderLinkClick = (summaryId: string | null) => {
+    if (!summaryId) return;
     setActiveTab("saved");
     // We can't directly open the accordion, but we can scroll to it.
     setTimeout(() => {
@@ -232,9 +297,15 @@ export default function MeetingSummarizer() {
         }
     }, 100);
   };
+  
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+    router.refresh();
+  };
 
 
-  if (!isMounted) {
+  if (isDataLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
           <Loader2 className="h-16 w-16 animate-spin" />
@@ -265,14 +336,14 @@ export default function MeetingSummarizer() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">John Doe</p>
+                        <p className="text-sm font-medium leading-none">{user.user_metadata.full_name || 'User'}</p>
                         <p className="text-xs leading-none text-muted-foreground">
-                            john.doe@example.com
+                            {user.email}
                         </p>
                     </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Sign Out</span>
                 </DropdownMenuItem>
@@ -307,7 +378,7 @@ export default function MeetingSummarizer() {
                 />
               </CardContent>
               <CardFooter className="flex-col sm:flex-row items-start sm:items-center gap-2">
-                <Button onClick={handleSummarize} disabled={isLoading}>
+                <Button onClick={handleSummarize} disabled={isLoading || !transcript.trim()}>
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   {isLoading ? 'Summarizing...' : 'Summarize'}
                 </Button>
@@ -457,7 +528,7 @@ export default function MeetingSummarizer() {
                           </p>
                         </div>
                         <div className="flex items-center">
-                          {reminder.summaryId !== "manual" && (
+                          {reminder.summaryId && (
                             <Button variant="ghost" size="icon" onClick={() => handleReminderLinkClick(reminder.summaryId)} title="Go to summary" className="hover:bg-accent hover:text-accent-foreground">
                                 <LinkIcon className="h-4 w-4" />
                             </Button>

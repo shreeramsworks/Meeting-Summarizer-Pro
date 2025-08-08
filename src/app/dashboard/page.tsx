@@ -15,7 +15,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <MeetingSummarizer />
+      <MeetingSummarizer user={user} />
     </div>
   );
 }
