@@ -4,20 +4,16 @@ import { createClient } from '@/lib/supabase/middleware';
 export async function middleware(request: NextRequest) {
   const { supabase, response } = createClient(request);
 
-  // Refresh session if expired - required for Server Components
-  // https://supabase.com/docs/guides/auth/server-side/nextjs
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
   const { pathname } = request.nextUrl;
 
-  // If user is logged in and on the homepage, redirect to dashboard
   if (session && pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // If user is not logged in and tries to access dashboard, redirect to homepage
   if (!session && pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/', request.url));
   }
@@ -26,5 +22,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/dashboard/:path*'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
 };
