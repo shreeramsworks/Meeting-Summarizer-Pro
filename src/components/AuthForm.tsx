@@ -74,7 +74,7 @@ export default function AuthForm({ mode, onClose }: AuthFormProps) {
         });
       } else {
         router.push("/dashboard");
-        router.refresh();
+        router.refresh(); // This forces a reload and ensures middleware runs
       }
     }
     setIsLoading(false);

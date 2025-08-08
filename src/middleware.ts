@@ -10,10 +10,12 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Redirect to dashboard if user is logged in and tries to access the root page
   if (session && pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
+  // Redirect to root if user is not logged in and tries to access dashboard
   if (!session && pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/', request.url));
   }
